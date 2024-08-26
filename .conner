@@ -1,0 +1,13 @@
+;;; -*- lisp-data -*-
+((:name "Compile and run server"
+        :command ("make"
+                  "./bin/server")
+        :type "compile"
+        :workdir "./server"
+        :comint t)
+ (:name "Compile and run client"
+        :command ("make"
+                  "./bin/client")
+        :type "compile"
+        :workdir "./client"
+        :comint t))

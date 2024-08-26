@@ -1,83 +1,91 @@
 #include "client.h"
+#include "utils.h"
+#include <commons/config.h>
+#include <commons/log.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/socket.h>
 
 int main(void)
 {
-	/*---------------------------------------------------PARTE 2-------------------------------------------------------------*/
+	t_log* logger = iniciar_logger();
+	t_config* config = iniciar_config();
 
-	int conexion;
-	char* ip;
-	char* puerto;
-	char* valor;
+    char *valor = config_get_string_value(config, "CLAVE");
+    char *ip = config_get_string_value(config, "IP");
+    char *puerto = config_get_string_value(config, "PUERTO");
 
-	t_log* logger;
-	t_config* config;
+    log_info(logger, "Cargado valor '%s'", valor);
+    log_info(logger, "Cargado valor '%s'", ip);
+    log_info(logger, "Cargado valor '%s'", puerto);
 
-	/* ---------------- LOGGING ---------------- */
+	int conexion = crear_conexion(ip, puerto);
+    int32_t result = realizar_handshake(logger, conexion);
 
-	logger = iniciar_logger();
+    if (result == 0) {
+      log_info(logger, "Handshake exitoso");
+    } else if (result == -1) {
+      log_error(logger, "Handshake no exitoso");
+      exit(1);
+    } else {
+      log_error(logger, "Respuesta de handshake inválida");
+      exit(1);
+    }
 
-	// Usando el logger creado previamente
-	// Escribi: "Hola! Soy un log"
+    loop_principal(conexion, logger, config);
 
+    terminar_programa(conexion, logger, config);
+}
 
-	/* ---------------- ARCHIVOS DE CONFIGURACION ---------------- */
+void loop_principal(int conexion, t_log *logger, t_config *config) {
+  char* linea;
+  bool exit = false;
+  while (!exit) {
+	linea = readline("> ");
 
-	config = iniciar_config();
+    if (strcmp(linea, "") == 0)
+      exit = true;
+    else {
+      log_info(logger, "%s", linea);
+      enviar_mensaje(linea, conexion);
+    }
+    free(linea);
+  }
+}
 
-	// Usando el config creado previamente, leemos los valores del config y los 
-	// dejamos en las variables 'ip', 'puerto' y 'valor'
+int32_t realizar_handshake(t_log *logger, int conexion) {
+    int32_t handshake = 1;
+    int32_t result;
 
-	// Loggeamos el valor de config
+    int bytes;
+    bytes = send(conexion, &handshake, sizeof(int32_t), 0);
+    log_info(logger, "Sent '%d' bytes", bytes);
+    bytes = recv(conexion, &result, sizeof(int32_t), MSG_WAITALL);
+    log_info(logger, "Received '%d' bytes", bytes);
 
-
-	/* ---------------- LEER DE CONSOLA ---------------- */
-
-	leer_consola(logger);
-
-	/*---------------------------------------------------PARTE 3-------------------------------------------------------------*/
-
-	// ADVERTENCIA: Antes de continuar, tenemos que asegurarnos que el servidor esté corriendo para poder conectarnos a él
-
-	// Creamos una conexión hacia el servidor
-	conexion = crear_conexion(ip, puerto);
-
-	// Enviamos al servidor el valor de CLAVE como mensaje
-
-	// Armamos y enviamos el paquete
-	paquete(conexion);
-
-	terminar_programa(conexion, logger, config);
-
-	/*---------------------------------------------------PARTE 5-------------------------------------------------------------*/
-	// Proximamente
+    return result;
 }
 
 t_log* iniciar_logger(void)
 {
-	t_log* nuevo_logger;
+  t_log* logger = log_create("tp0.log", "prueba", true, LOG_LEVEL_INFO);
+  if (logger == NULL) {
+    printf("No se pudo crear el log");
+    abort();
+  }
 
-	return nuevo_logger;
+	return logger;
 }
 
 t_config* iniciar_config(void)
 {
-	t_config* nuevo_config;
+  t_config* config = config_create("cliente.config");
+  if (config == NULL) {
+    printf("No se pudo crear la config");
+    abort();
+  }
 
-	return nuevo_config;
-}
-
-void leer_consola(t_log* logger)
-{
-	char* leido;
-
-	// La primera te la dejo de yapa
-	leido = readline("> ");
-
-	// El resto, las vamos leyendo y logueando hasta recibir un string vacío
-
-
-	// ¡No te olvides de liberar las lineas antes de regresar!
-
+	return config;
 }
 
 void paquete(int conexion)
@@ -90,11 +98,12 @@ void paquete(int conexion)
 
 
 	// ¡No te olvides de liberar las líneas y el paquete antes de regresar!
-	
+
 }
 
 void terminar_programa(int conexion, t_log* logger, t_config* config)
 {
-	/* Y por ultimo, hay que liberar lo que utilizamos (conexion, log y config) 
-	  con las funciones de las commons y del TP mencionadas en el enunciado */
+  log_destroy(logger);
+  config_destroy(config);
+  liberar_conexion(conexion);
 }
